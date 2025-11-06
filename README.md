@@ -110,3 +110,9 @@ Copy code
 
 Would you like me to make it look **more stylish** (with badges, emojis, and colored headings like a professional GitHub profile)? I can make that version too 🌈# ATS_py
 
+AUTHOR CREDIT TO:-
+ADITYA CHAURASIYA
+MAJOR CONTRIBUTOR:-
+https://github.com/ayu-haker/ATS_py
+
+
