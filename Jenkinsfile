@@ -2,16 +2,16 @@ pipeline {
     agent any
 
     environment {
-        // Updated to use your Docker Hub username
         DOCKER_IMAGE = "aditya20266/ats-py"
-        CREDENTIALS_ID = "dockerhub-credentials" // Make sure this matches your Jenkins credential ID
+        CREDENTIALS_ID = "dockerhub-credentials" // Ensure this credential ID exists in Jenkins
     }
 
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
-                sh 'git log -1 --pretty=%h %an %s'
+                // Fixed quotes and format string for git log
+                sh 'git log -1 --pretty=format:"%h %an %s"'
             }
         }
 
@@ -62,7 +62,8 @@ pipeline {
 
         stage('Docker Push') {
             steps {
-                withCredentials([usernamePassword(credentialsId: '${CREDENTIALS_ID}', 
+                // Fixed the variable interpolation syntax for credentialsId
+                withCredentials([usernamePassword(credentialsId: "${CREDENTIALS_ID}", 
                                                    usernameVariable: 'DOCKERHUB_USER', 
                                                    passwordVariable: 'DOCKERHUB_PASS')]) {
                     sh '''
@@ -81,7 +82,7 @@ pipeline {
         }
         failure {
             cleanWs()
-            echo "Build failed for commit ${env.GIT_COMMIT_SHORT}"
+            echo "Build failed!"
         }
     }
 }
