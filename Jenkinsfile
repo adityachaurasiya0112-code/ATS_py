@@ -9,10 +9,10 @@ pipeline {
     }
 
     environment {
-        APP_NAME      = 'ats-py'
-        IMAGE_NAME    = 'ats-py'
-        DOCKERHUB_USER = 'ayuhaker'
-        REGISTRY_URL  = 'docker.io'
+        APP_NAME       = 'ats-py'
+        IMAGE_NAME     = 'ats-py'
+        DOCKERHUB_USER = 'ayushman21'
+        REGISTRY_URL   = 'docker.io'
     }
 
     stages {
@@ -27,10 +27,19 @@ pipeline {
         stage('Prepare') {
             steps {
                 script {
-                    env.SHORT_SHA = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-                    env.BRANCH    = env.BRANCH_NAME?.trim() ?: 'manual'
-                    env.IMAGE_TAG = env.BRANCH == 'main' ? 'latest' : "${env.BRANCH}-${env.SHORT_SHA}"
+                    env.SHORT_SHA = sh(
+                        script: 'git rev-parse --short HEAD',
+                        returnStdout: true
+                    ).trim()
+
+                    env.BRANCH = env.BRANCH_NAME?.trim() ?: 'manual'
+
+                    env.IMAGE_TAG = env.BRANCH == 'main'
+                        ? 'latest'
+                        : "${env.BRANCH}-${env.SHORT_SHA}"
+
                     env.FULL_IMAGE = "${env.REGISTRY_URL}/${env.DOCKERHUB_USER}/${env.IMAGE_NAME}:${env.IMAGE_TAG}"
+
                     echo "Building ${env.FULL_IMAGE}"
                 }
             }
@@ -73,13 +82,16 @@ pipeline {
 
         stage('Docker Push') {
             steps {
-                withCredentials([string(
-                    credentialsId: 'dockerhub-password',
-                    variable: 'DOCKERHUB_PASS'
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-hub-credentials',
+                    usernameVariable: 'DOCKERHUB_USER',
+                    passwordVariable: 'DOCKERHUB_PASS'
                 )]) {
                     sh '''
                         echo "$DOCKERHUB_PASS" | docker login \
-                            -u "$DOCKERHUB_USER" --password-stdin "$REGISTRY_URL"
+                            -u "$DOCKERHUB_USER" \
+                            --password-stdin "$REGISTRY_URL"
+
                         docker push "$FULL_IMAGE"
                     '''
                 }
@@ -89,12 +101,17 @@ pipeline {
 
     post {
         success {
-            script { sh 'docker rmi "$FULL_IMAGE" || true' }
-            echo "✅ Build successful: ${env.FULL_IMAGE}"
+            script {
+                sh 'docker rmi "$FULL_IMAGE" || true'
+            }
+
+            echo "Build successful: ${env.FULL_IMAGE}"
         }
+
         failure {
-            echo "❌ Build failed for commit ${env.SHORT_SHA}"
+            echo "Build failed for commit ${env.SHORT_SHA}"
         }
+
         always {
             cleanWs()
         }
