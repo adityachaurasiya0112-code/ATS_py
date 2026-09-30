@@ -1,46 +1,26 @@
 pipeline {
     agent any
 
-    options {
-        timestamps()
-        buildDiscarder(logRotator(numToKeepStr: '10'))
-        timeout(time: 30, unit: 'MINUTES')
-        disableConcurrentBuilds()
-    }
-
     environment {
-        APP_NAME       = 'ats-py'
-        IMAGE_NAME     = 'ats-py'
-        DOCKERHUB_USER = 'ayushman21'
-        REGISTRY_URL   = 'docker.io'
+        // Updated to use your Docker Hub username
+        DOCKER_IMAGE = "aditya20266/ats-py"
+        CREDENTIALS_ID = "dockerhub-credentials" // Make sure this matches your Jenkins credential ID
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 checkout scm
-                sh 'git log -1 --pretty="%h %an %s"'
+                sh 'git log -1 --pretty=%h %an %s'
             }
         }
 
         stage('Prepare') {
             steps {
                 script {
-                    env.SHORT_SHA = sh(
-                        script: 'git rev-parse --short HEAD',
-                        returnStdout: true
-                    ).trim()
-
-                    env.BRANCH = env.BRANCH_NAME?.trim() ?: 'manual'
-
-                    env.IMAGE_TAG = env.BRANCH == 'main'
-                        ? 'latest'
-                        : "${env.BRANCH}-${env.SHORT_SHA}"
-
-                    env.FULL_IMAGE = "${env.REGISTRY_URL}/${env.DOCKERHUB_USER}/${env.IMAGE_NAME}:${env.IMAGE_TAG}"
-
-                    echo "Building ${env.FULL_IMAGE}"
+                    env.GIT_COMMIT_SHORT = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
+                    env.IMAGE_TAG = "${env.DOCKER_IMAGE}:manual-${env.GIT_COMMIT_SHORT}"
+                    echo "Building ${env.IMAGE_TAG}"
                 }
             }
         }
@@ -76,23 +56,18 @@ pipeline {
 
         stage('Docker Build') {
             steps {
-                sh 'docker build -t "$FULL_IMAGE" .'
+                sh "docker build -t ${env.IMAGE_TAG} ."
             }
         }
 
         stage('Docker Push') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'docker-hub-credentials',
-                    usernameVariable: 'DOCKERHUB_USER',
-                    passwordVariable: 'DOCKERHUB_PASS'
-                )]) {
+                withCredentials([usernamePassword(credentialsId: '${CREDENTIALS_ID}', 
+                                                   usernameVariable: 'DOCKERHUB_USER', 
+                                                   passwordVariable: 'DOCKERHUB_PASS')]) {
                     sh '''
-                        echo "$DOCKERHUB_PASS" | docker login \
-                            -u "$DOCKERHUB_USER" \
-                            --password-stdin "$REGISTRY_URL"
-
-                        docker push "$FULL_IMAGE"
+                        echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USER" --password-stdin docker.io
+                        docker push ${IMAGE_TAG}
                     '''
                 }
             }
@@ -101,19 +76,12 @@ pipeline {
 
     post {
         success {
-            script {
-                sh 'docker rmi "$FULL_IMAGE" || true'
-            }
-
-            echo "Build successful: ${env.FULL_IMAGE}"
-        }
-
-        failure {
-            echo "Build failed for commit ${env.SHORT_SHA}"
-        }
-
-        always {
             cleanWs()
+            echo "Pipeline completed successfully!"
+        }
+        failure {
+            cleanWs()
+            echo "Build failed for commit ${env.GIT_COMMIT_SHORT}"
         }
     }
 }
